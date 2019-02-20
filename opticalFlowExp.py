@@ -4,7 +4,6 @@
 
 import numpy as np
 import cv2 as cv
-from PIL import Image
 
 path = "C:/Users/Nikki Wang/Pictures/error.gif"	# Insert video path here
 
@@ -22,7 +21,8 @@ lk_params = dict ( winSize = (15, 15),
 				   criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
 
 # Create some random colors
-color = np.random.randint(0, 255, (100, 3))
+#color = np.random.randint(0, 255, (100, 3))
+color = (0, 255, 0)
 
 # Take first frame and find corners in it
 ret, old_frame = cap.read()
@@ -31,7 +31,7 @@ old_gray = cv.cvtColor(old_frame, cv.COLOR_BGR2GRAY)
 p0 = cv.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
 
 # Create a mask image for drawing purposes
-mask = np.zeros_like(old_frame)
+#mask = np.zeros_like(old_frame)
 
 frameNum = 0
 while(1):
@@ -48,17 +48,25 @@ while(1):
 		good_new = p1[st==1]
 		good_old = p0[st==1]
 
+		# Create a mask image for drawing purposes
+		mask = np.zeros_like(old_frame)
+
 		# draw the tracks
 		for i, (new, old) in enumerate(zip(good_new, good_old)):
 			a,b = new.ravel()
 			c,d = old.ravel()
-			mask = cv.line(mask, (a, b), (c, d), color[i].tolist(), 2)
-			frame = cv.circle(frame, (a, b), 5, color[i].tolist(), -1)
+			#mask = cv.arrowedLine(mask, (a, b), (c, d), color[i].tolist(), 2)
+			mask = cv.arrowedLine(mask, (a, b), (c, d), color, 2)
+			#cv.imshow("mask", mask)
+			#frame = cv.circle(frame, (a, b), 5, color[i].tolist(), -1)
+			frame = cv.circle(frame, (a, b), 5, color, -1)
 
 		img = cv.add(frame, mask)
+		maskname = "mask{}.png".format(frameNum)
 		filename = "frame{}.png".format(frameNum)
 		frameNum += 1
 		cv.imwrite(filename, img)
+		cv.imwrite(maskname, mask)
 
 		cv.imshow('frame', img)
 		k = cv.waitKey(30) & 0xff
