@@ -29,7 +29,8 @@ class STPN(torch.nn.Module):
 		# torch.nn.AvgPool2d(kernel_size, stride = None, padding = 0, ceil_mode = False, count_include_pad=True)
 		# ceil_mode - when True, will use ceil instead of floor to compute the output shape
 		# count_include_pad - when True, will include the zero-padding in the average calculation
-		self.pool1 = torch.nn.AvgPool2d(kernel_size, stride, padding)
+		# Kernel size: 7 x 7
+		self.pool1 = torch.nn.AvgPool2d((7, 7), stride, padding)
 
 		# Temporal Stream
 		# Input channels = 3
@@ -37,7 +38,7 @@ class STPN(torch.nn.Module):
 		self.cnn3 = models.inception_v3(pretrained = True)
 		self.cnn4 = models.inception_v3(pretrained = True)
 
-		self.pool2 = torch.nn.AvgPool2D(kernel_size, stride, padding)
+		self.pool2 = torch.nn.AvgPool2D((7, 7), stride, padding)
 
 		# Attention stream
 		# STCB layers
@@ -45,8 +46,8 @@ class STPN(torch.nn.Module):
 		# self.stcb2 = CompactBilinearPooling()
 
 		# Input channels = 7, output channels = 7
-		self.conv1 = torch.nn.Conv2d(7, 7, kernel_size, stride, padding)
-		self.conv2 = torch.nn.Conv2d(7, 7, kernel_size, stride, padding)
+		self.conv1 = torch.nn.Conv2d(2048, 64, (7, 7), stride, padding)
+		self.conv2 = torch.nn.Conv2d(64, 1, (7, 7), stride, padding)
 		self.sm = torch.nn.Softmax2d()
 		# self.pool3 = WeightedPool()
 
