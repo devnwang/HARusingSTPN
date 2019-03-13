@@ -13,16 +13,19 @@ import torch.optim as optim
 import torch.optim.lr_scheduler
 import Optical_Flow 
 import STCB
+import time
 
 seed = 42
 np.random.seed(seed)
 torch.manual_seed(seed)
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 inputs = Optical_Flow.opt_flow()
 
 class STPN(torch.nn.Module):
 
-	# Inception models exceptcs tensors with a size of N x 3 x 299 x 299
+	# Inception models expects tensors with a size of N x 3 x 299 x 299
 
 	def __init__(self):
 		super(STPN, self).__init__()
@@ -34,7 +37,13 @@ class STPN(torch.nn.Module):
 		self.cnn4 = models.inception_v3(pretrained = True)
 
 		# Freeze the layers
-		for param in self.cnn1.parameters(), self.cnn2.parameters(), self.cnn3.parameters(), self.cnn4.parameters():
+		for param in self.cnn1.parameters():
+			param.requires_grad = False
+		for param in self.cnn2.parameters():
+			param.requires_grad = False
+		for param in self.cnn3.parameters():
+			param.requires_grad = False
+		for param in self.cnn4.parameters():
 			param.requires_grad = False
 
 		# Construct last layer of CNNs
@@ -57,7 +66,7 @@ class STPN(torch.nn.Module):
 		# torch.nn.AvgPool2d(kernel_size, stride = None, padding = 0, ceil_mode = False, count_include_pad=True)
 		# count_include_pad - when True, will include the zero-padding in the average calculation
 		# Kernel size: 7 x 7
-		self.pool1 = torch.nn.AvgPool2d((7, 7), stride, padding)
+		self.avgPool1 = torch.nn.AvgPool2d((7, 7), stride, padding)
 
 		# Temporal Stream
 		# Input channels = 3
@@ -65,33 +74,32 @@ class STPN(torch.nn.Module):
 		#self.cnn3 = models.inception_v3(pretrained = True)
 		#self.cnn4 = models.inception_v3(pretrained = True)
 
-		self.pool2 = torch.nn.AvgPool2D((7, 7), stride, padding)
+		self.avgPool2= torch.nn.AvgPool2D((7, 7), stride, padding)
 
 		# Attention stream
 		# STCB layers
 		self.stcb1 = STCB.CompactBilinearPooling(1024, 1024, 1024, 1024)
 		self.stcb1.cuda()
 		self.stcb1.train()
-		self.out1 = stcb1(cnn2,cnn3,cnn4)
+		self.out1 = self.stcb1(self.cnn2,self.cnn3,self.cnn4)
 
 		self.stcb2 = STCB.CompactBilinearPooling(1024, 1024, 2048)
 		self.stcb2.cuda()
 		self.stcb2.train()
-		self.out2 = stcb2(out1,cnn1)
+		self.out2 = self.stcb2(self.out1,self.cnn1)
 		
 		# Input channels = 7, output channels = 7
 		self.conv1 = torch.nn.Conv2d(2048, 64, (7, 7), stride, padding)
 		self.conv2 = torch.nn.Conv2d(64, 1, (7, 7), stride, padding)
 		self.sm = torch.nn.Softmax2d()
-		# self.pool3 = WeightedPool()
-		# Substitute pooling layer
-		self.pool3 = torch.nn.AvgPool2D((7, 7), stride, padding)
+		# Weighted Pooling Layer
+		self.wtPool = torch.nn.AvgPool2D((7, 7), stride, padding)
 
 		# Intersection of streams
 		self.stcb3 = STCB.CompactBilinearPooling(1024,1024,1024,4096)
 		self.stcb3.cuda()
 		self.stcb3.train()
-		self.out3 = stcb3(pool1,pool2,pool3)
+		self.out3 = self.stcb3(self.pool1,self.pool2,self.pool3)
 		
 		# 4096 input features, 101 output features for 101 defined classes
 		self.fc = torch.nn.Linear(4096, 101)
@@ -99,32 +107,44 @@ class STPN(torch.nn.Module):
 	def forward(self, rgb1, of1, of2, of3):
 		# Spatial Stream
 		rgb = self.cnn1(rgb1)
-		spat = self.pool1(rgb)
+		spat = self.avgPool1(rgb)	# Average pooling for the spatial stream
 
 		# Temporal Stream
-		of1 = self.pool1(of1)
-		of2 = self.pool1(of2)
-		of3 = self.pool1(of3)
-		# of = self.stcb1()
-		temp = self.pool2(of)
+		of1 = self.cnn2(of1)
+		of2 = self.cnn3(of2)
+		of3 = self.cnn4(of3)
+		of = self.stcb1(of1, of2, of3)
+		temp = self.avgPool2(of)	# Average pooling for the temporal stream
 
 		# Attention Stream
-		#att1 = self.stcb2()
-		att1 = self.conv1(att1)
-		att1 = self.conv2(att1)
-		att1 = self.sm(att1)
-		att = self.pool3(att1)
-		att = self.pool3(rgb)
+		att1 = self.stcb2(rgb, of)
+		att1 = self.conv1(att1)		# 1st convolution layer
+		att1 = self.conv2(att1)		# 2nd convolution layer
+		att1 = self.sm(att1)		# Softmax layer
+		att = self.wtPool(att1 * rgb)	# Weighted pooling - element-wise multiplication from spatial and attention stream
+		#att = self.pool3(rgb)
 
-		# spatemp = self.stcb3()
+		spatemp = self.stcb3(spat, temp, att)
 
 		res = self.fc(spatemp)
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
+class WeightedPool(nn.Module):
+
+	def __init__(self):
+		super(WeightedPool, self).__init__()
+		self.pool = torch.nn.AvgPool2D((7,7), stride, padding)
+
+	def forward(self, x1, x2):
+		x = self.pool(x1 * x2)
+		return x
+
+def train_model(model, num_epochs=25, learning_rate = 0.001):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+
+    criterion, optimizer, scheduler = createLossAndOptimizer(model, learning_rate)
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -197,11 +217,10 @@ def createLossAndOptimizer(net, learning_rate = 0.001):
 
 	scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-	return (criterion, optimizer, scheduler)
+	return criterion, optimizer, scheduler
 
 if __name__ == '__main__':
     # arrFrames = Optical_Flow.opt_flow()
-    model_ft = train_model(STPN(), criterion, optimizer_ft, exp_lr_scheduler,
-                       num_epochs=25)
+    model_ft = train_model(STPN(), num_epochs=25, learning_rate = 0.001)
     # test = STPN(arrFrames)
     # print(test)
