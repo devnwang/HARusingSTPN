@@ -30,7 +30,7 @@ class CompactBilinearPooling(nn.Module):
     """
 
     def __init__(self, input_dim1, input_dim2, output_dim,
-                 sum_pool=True, cuda=True,
+                 sum_pool=False, cuda=True,
                  rand_h_1=None, rand_s_1=None, rand_h_2=None, rand_s_2=None):
         super(CompactBilinearPooling, self).__init__()
         self.input_dim1 = input_dim1
@@ -63,7 +63,7 @@ class CompactBilinearPooling(nn.Module):
             self.sparse_sketch_matrix2 = self.sparse_sketch_matrix2.cuda()
 
     def __init__(self, input_dim1, input_dim2, input_dim3, output_dim,
-                 sum_pool=True, cuda=True,
+                 sum_pool=False, cuda=True,
                  rand_h_1=None, rand_s_1=None, rand_h_2=None, rand_s_2=None,
                  rand_h_3=None, rand_s_3=None):
         super(CompactBilinearPooling, self).__init__()
@@ -116,7 +116,7 @@ class CompactBilinearPooling(nn.Module):
         assert bottom1.size(1) == self.input_dim1 and \
             bottom2.size(1) == self.input_dim2
 
-        batch_size, _, height, width = bottom1.size()
+        _, height, width = bottom1.size()
 
         bottom1_flat = bottom1.permute(0, 2, 3, 1).contiguous().view(-1, self.input_dim1)
         bottom2_flat = bottom2.permute(0, 2, 3, 1).contiguous().view(-1, self.input_dim2)
@@ -132,7 +132,7 @@ class CompactBilinearPooling(nn.Module):
 
         cbp_flat = afft.Ifft()(fft_product_real, fft_product_imag)[0]
 
-        cbp = cbp_flat.view(batch_size, height, width, self.output_dim)
+        cbp = cbp_flat.view(height, width, self.output_dim)
 
         if self.sum_pool:
             cbp = cbp.sum(dim=1).sum(dim=1)
@@ -144,15 +144,15 @@ class CompactBilinearPooling(nn.Module):
         bottom1: 1st input, 4D Tensor of shape [batch_size, input_dim1, height, width].
         bottom2: 2nd input, 4D Tensor of shape [batch_size, input_dim2, height, width].
         """
-        assert bottom1.size(1) == self.input_dim1 and \
-            bottom2.size(1) == self.input_dim2 and \
-            bottom3.size(1) == self.input_dim3
+        assert bottom1.size(0) == self.input_dim1 and \
+            bottom2.size(0) == self.input_dim2 and \
+            bottom3.size(0) == self.input_dim3
 
-        batch_size, _, height, width = bottom1.size()
+        _, height, width = bottom1.size()
 
-        bottom1_flat = bottom1.permute(0, 2, 3, 1).contiguous().view(-1, self.input_dim1)
-        bottom2_flat = bottom2.permute(0, 2, 3, 1).contiguous().view(-1, self.input_dim2)
-        bottom3_flat = bottom3.permute(0, 2, 3, 1).contiguous().view(-1, self.input_dim3)
+        bottom1_flat = bottom1.permute(1, 2, 0).contiguous().view(-1, self.input_dim1)
+        bottom2_flat = bottom2.permute(1, 2, 0).contiguous().view(-1, self.input_dim2)
+        bottom3_flat = bottom3.permute(1, 2, 0).contiguous().view(-1, self.input_dim3)
 
         sketch_1 = bottom1_flat.mm(self.sparse_sketch_matrix1)
         sketch_2 = bottom2_flat.mm(self.sparse_sketch_matrix2)
@@ -169,7 +169,7 @@ class CompactBilinearPooling(nn.Module):
 
         cbp_flat = afft.Ifft()(fft_product_real_new, fft_product_imag_new)[0]
 
-        cbp = cbp_flat.view(batch_size, height, width, self.output_dim)
+        cbp = cbp_flat.view(height, width, self.output_dim)
 
         if self.sum_pool:
             cbp = cbp.sum(dim=1).sum(dim=1)
@@ -208,14 +208,20 @@ class CompactBilinearPooling(nn.Module):
 
 if __name__ == '__main__':
 
-    bottom1 = Variable(torch.randn(128, 512, 14, 14)).cuda()
-    bottom2 = Variable(torch.randn(128, 512, 14, 14)).cuda()
-    bottom3 = Variable(torch.randn(128, 512, 14, 14)).cuda()
+    bottom1 = Variable(torch.randn(1024, 7, 7)).cuda()
+    bottom2 = Variable(torch.randn(1024, 7, 7)).cuda()
+    bottom3 = Variable(torch.randn(1024, 7, 7)).cuda()
 
     # layer = CompactBilinearPooling(512, 512, 8000)
-    layer = CompactBilinearPooling(512, 512, 512, 8000)
+    layer = CompactBilinearPooling(1024, 1024, 1024, 1024)
     layer.cuda()
     layer.train()
 
     # out = layer(bottom1, bottom2)
     out = layer(bottom1, bottom2, bottom3)
+    
+#print(out)
+outSize=out.size()
+bottom1Size=bottom1.size()
+print(outSize)
+print(bottom1Size)
