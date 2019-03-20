@@ -4,10 +4,11 @@
 import cv2 as cv
 import numpy as np
 import random
-# import torch
-# import torchvision
+import torch
+import torchvision
+import os
 
-def extractFrames(path):
+def extractFrames(cap):
 	'''
 	Extracts the frames of a given video.
 
@@ -17,7 +18,7 @@ def extractFrames(path):
 	Returns:
 	frames -- list of resized (299 x 299) RGB frames 
 	'''
-	cap = cv.VideoCapture(path)
+	#cap = cv.VideoCapture(path)
 
 	frames = []
 	
@@ -86,7 +87,7 @@ def selectInputs(frames, L = 10):
 
 	return t, set1_start, set1_end, set2_start, set2_end, set3_start, set3_end
 
-def computeFlow(frames, start, end, f_params, lk):
+def computeFlow(frames, start, end, f_params, lk, filename):
 	'''
 	Computes the optical flow of a given range of frames
 
@@ -99,8 +100,8 @@ def computeFlow(frames, start, end, f_params, lk):
 	Returns:
 	flow	-- tensor of optical flow
 	'''
-	print("Num of frames: %d" % len(frames))
-	print("Start: %d" % start)
+	# print("Num of frames: %d" % len(frames))
+	# print("Start: %d" % start)
 
 	color = (0, 255, 0)		# Green color
 
@@ -111,6 +112,8 @@ def computeFlow(frames, start, end, f_params, lk):
 	p0 = cv.goodFeaturesToTrack(old_gray, mask = None, **f_params)
 
 	flow = []
+
+	frameNum = 0
 
 	for x in range(start, end):
 		frame = frames[x]
@@ -136,6 +139,9 @@ def computeFlow(frames, start, end, f_params, lk):
 			frame = cv.circle(frame, (a, b), 5, color, -1)
 
 		img = cv.add(frame, mask)
+
+		cv.imwrite(os.path.join(filename, "0000{}.jpg".format(str(frameNum))), img)
+
 		tensor = torch.from_numpy(img)
 		flow.append(tensor)
 		# flow.append(img)
@@ -151,7 +157,7 @@ def computeFlow(frames, start, end, f_params, lk):
 
 	return flow
 
-def extractOptFlow(frames):
+def extractOptFlow(frames, filename):
 	'''
 	Extract the optical flow of selected frames
 
@@ -181,13 +187,13 @@ def extractOptFlow(frames):
 	# color = (0, 255, 0)		# Green color
 
 	# Compute the optical flows
-	flow1 = computeFlow(frames, s1_s, s1_e, feature_params, lk_params)
-	flow2 = computeFlow(frames, s2_s, s2_e, feature_params, lk_params)
-	flow3 = computeFlow(frames, s3_s, s3_e, feature_params, lk_params)
+	flow1 = computeFlow(frames, s1_s, s1_e, feature_params, lk_params, filename)
+	flow2 = computeFlow(frames, s2_s, s2_e, feature_params, lk_params, filename)
+	flow3 = computeFlow(frames, s3_s, s3_e, feature_params, lk_params, filename)
 
 	return rgb, flow1, flow2, flow3
 
-def getInputs(path):
+def getInputs(cap, filename):
 	'''
 	Gets the input for the model
 
@@ -201,11 +207,11 @@ def getInputs(path):
 	flow3	-- third set of optical flow frames
 	'''
 
-	frames = extractFrames(path)
-	rgb, flow1, flow2, flow3 = extractOptFlow(frames)
+	frames = extractFrames(cap)
+	rgb, flow1, flow2, flow3 = extractOptFlow(frames, filename)
 
 	return rgb, flow1, flow2, flow3
 
-if __name__ == '__main__':
-	path = "../kick.avi"
-	inputs = getInputs(path)
+# if __name__ == '__main__':
+# 	path = "../kick.avi"
+# 	inputs = getInputs(path)

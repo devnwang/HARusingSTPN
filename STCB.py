@@ -29,39 +29,6 @@ class CompactBilinearPooling(nn.Module):
                   None.
     """
 
-    def __init__(self, input_dim1, input_dim2, output_dim,
-                 sum_pool=False, cuda=True,
-                 rand_h_1=None, rand_s_1=None, rand_h_2=None, rand_s_2=None):
-        super(CompactBilinearPooling, self).__init__()
-        self.input_dim1 = input_dim1
-        self.input_dim2 = input_dim2
-        self.output_dim = output_dim
-        self.sum_pool = sum_pool
-
-        if rand_h_1 is None:
-            np.random.seed(1)
-            rand_h_1 = np.random.randint(output_dim, size=self.input_dim1)
-        if rand_s_1 is None:
-            np.random.seed(3)
-            rand_s_1 = 2 * np.random.randint(2, size=self.input_dim1) - 1
-
-        self.sparse_sketch_matrix1 = Variable(self.generate_sketch_matrix(
-            rand_h_1, rand_s_1, self.output_dim))
-
-        if rand_h_2 is None:
-            np.random.seed(5)
-            rand_h_2 = np.random.randint(output_dim, size=self.input_dim2)
-        if rand_s_2 is None:
-            np.random.seed(7)
-            rand_s_2 = 2 * np.random.randint(2, size=self.input_dim2) - 1
-
-        self.sparse_sketch_matrix2 = Variable(self.generate_sketch_matrix(
-            rand_h_2, rand_s_2, self.output_dim))
-
-        if cuda:
-            self.sparse_sketch_matrix1 = self.sparse_sketch_matrix1.cuda()
-            self.sparse_sketch_matrix2 = self.sparse_sketch_matrix2.cuda()
-
     def __init__(self, input_dim1, input_dim2, input_dim3, output_dim,
                  sum_pool=False, cuda=True,
                  rand_h_1=None, rand_s_1=None, rand_h_2=None, rand_s_2=None,
@@ -107,6 +74,39 @@ class CompactBilinearPooling(nn.Module):
             self.sparse_sketch_matrix1 = self.sparse_sketch_matrix1.cuda()
             self.sparse_sketch_matrix2 = self.sparse_sketch_matrix2.cuda()
             self.sparse_sketch_matrix3 = self.sparse_sketch_matrix3.cuda()
+
+    def init2(cls, input_dim1, input_dim2, output_dim,
+                 sum_pool=False, cuda=True,
+                 rand_h_1=None, rand_s_1=None, rand_h_2=None, rand_s_2=None):
+        # super(CompactBilinearPooling, self).__init__()
+        self.input_dim1 = input_dim1
+        self.input_dim2 = input_dim2
+        self.output_dim = output_dim
+        self.sum_pool = sum_pool
+
+        if rand_h_1 is None:
+            np.random.seed(1)
+            rand_h_1 = np.random.randint(output_dim, size=self.input_dim1)
+        if rand_s_1 is None:
+            np.random.seed(3)
+            rand_s_1 = 2 * np.random.randint(2, size=self.input_dim1) - 1
+
+        self.sparse_sketch_matrix1 = Variable(self.generate_sketch_matrix(
+            rand_h_1, rand_s_1, self.output_dim))
+
+        if rand_h_2 is None:
+            np.random.seed(5)
+            rand_h_2 = np.random.randint(output_dim, size=self.input_dim2)
+        if rand_s_2 is None:
+            np.random.seed(7)
+            rand_s_2 = 2 * np.random.randint(2, size=self.input_dim2) - 1
+
+        self.sparse_sketch_matrix2 = Variable(self.generate_sketch_matrix(
+            rand_h_2, rand_s_2, self.output_dim))
+
+        if cuda:
+            self.sparse_sketch_matrix1 = self.sparse_sketch_matrix1.cuda()
+            self.sparse_sketch_matrix2 = self.sparse_sketch_matrix2.cuda()
 
     def forward(self, bottom1, bottom2):
         """
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     out = layer(bottom1, bottom2, bottom3)
     
 #print(out)
-outSize=out.size()
-bottom1Size=bottom1.size()
-print(outSize)
-print(bottom1Size)
+# outSize=out.size()
+# bottom1Size=bottom1.size()
+# print(outSize)
+# print(bottom1Size)
