@@ -13,24 +13,24 @@ def extractFrames(cap):
 	Extracts the frames of a given video.
 
 	Arguments:
-	path -- filepath
+	cap -- captured video
 
 	Returns:
-	frames -- list of resized (299 x 299) RGB frames 
+	frames -- list of resized (224 x 224) RGB frames 
 	'''
 	#cap = cv.VideoCapture(path)
 
 	frames = []
 	
 	# Desired dimensions
-	height = 299
-	width = 299
+	height = 224
+	width = 224
 	dim = (width, height)
 
 	while True:
 		ret, frame = cap.read()
 		if ret:
-			# Resize frame to be 299 x 299
+			# Resize frame to be 224 x 224
 			frame = cv.resize(frame, dim, interpolation = cv.INTER_AREA)
 
 			# Add frame to the list of frames
@@ -87,18 +87,21 @@ def selectInputs(frames, L = 10):
 
 	return t, set1_start, set1_end, set2_start, set2_end, set3_start, set3_end
 
-def computeFlow(frames, start, end, f_params, lk, filename):
+def computeFlow(frames, start, end, f_params, lk, filename, num):
 	'''
 	Computes the optical flow of a given range of frames
 
 	Arguments:
-	frames	-- list of RGB frames
-	start	-- start of set
-	end		-- end of set
-	params	-- optical flow parameters
+	frames		-- list of RGB frames
+	start		-- start of set
+	end			-- end of set
+	f_params	-- ShiTomasi corner detection parameters
+	lk			-- Lucas Kanade optical flow parameters
+	filename	-- save filepath
+	num			-- starting frame number to be saved
 
 	Returns:
-	flow	-- tensor of optical flow
+	flow	-- tensor of optical flow frames
 	'''
 	# print("Num of frames: %d" % len(frames))
 	# print("Start: %d" % start)
@@ -113,7 +116,7 @@ def computeFlow(frames, start, end, f_params, lk, filename):
 
 	flow = []
 
-	frameNum = 0
+	# frameNum = 0
 
 	for x in range(start, end):
 		frame = frames[x]
@@ -140,7 +143,8 @@ def computeFlow(frames, start, end, f_params, lk, filename):
 
 		img = cv.add(frame, mask)
 
-		cv.imwrite(os.path.join(filename, "0000{}.jpg".format(str(frameNum))), img)
+		cv.imwrite(os.path.join(filename, "flow{}.jpg".format(str(num))), img)
+		num += 1
 
 		tensor = torch.from_numpy(img)
 		flow.append(tensor)
@@ -162,7 +166,8 @@ def extractOptFlow(frames, filename):
 	Extract the optical flow of selected frames
 
 	Arguments:
-	frames	-- list of RGB frames
+	frames		-- list of RGB frames
+	filename	-- save path
 
 	Returns:
 	rgb		-- selected RGB frame
@@ -171,7 +176,11 @@ def extractOptFlow(frames, filename):
 	flow3	-- third set of optical flow frames
 	'''
 	# Get selected frames
-	rgb, s1_s, s1_e, s2_s, s2_e, s3_s, s3_e = selectInputs(frames)
+	t, s1_s, s1_e, s2_s, s2_e, s3_s, s3_e = selectInputs(frames)
+	rgb = frames[t]
+
+	# Save the rgb frame
+	cv.imwrite(os.path.join(filename, "rgb.jpg"), rgb)
 
 	# Parameters for ShiTomasi corner detection
 	feature_params = dict( maxCorners = 100,
@@ -187,9 +196,9 @@ def extractOptFlow(frames, filename):
 	# color = (0, 255, 0)		# Green color
 
 	# Compute the optical flows
-	flow1 = computeFlow(frames, s1_s, s1_e, feature_params, lk_params, filename)
-	flow2 = computeFlow(frames, s2_s, s2_e, feature_params, lk_params, filename)
-	flow3 = computeFlow(frames, s3_s, s3_e, feature_params, lk_params, filename)
+	flow1 = computeFlow(frames, s1_s, s1_e, feature_params, lk_params, filename, 1)
+	flow2 = computeFlow(frames, s2_s, s2_e, feature_params, lk_params, filename, 11)
+	flow3 = computeFlow(frames, s3_s, s3_e, feature_params, lk_params, filename, 21)
 
 	return rgb, flow1, flow2, flow3
 
@@ -198,7 +207,8 @@ def getInputs(cap, filename):
 	Gets the input for the model
 
 	Arguments:
-	path	-- filepath
+	cap			-- captured video
+	filename	-- save path
 
 	Returns:
 	rgb		-- RGB frame
@@ -208,6 +218,7 @@ def getInputs(cap, filename):
 	'''
 
 	frames = extractFrames(cap)
+	# print("filename = {}".format(str(filename)))
 	rgb, flow1, flow2, flow3 = extractOptFlow(frames, filename)
 
 	return rgb, flow1, flow2, flow3
