@@ -2,6 +2,7 @@
 # Network Architecture
 # Modified: Mar. 13, 2019
 
+import os
 import numpy as np
 import torch
 import torchvision
@@ -22,8 +23,6 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-path = "/notebooks/storage/kick.avi"
-rgb, flow1, flow2, flow3 = optical_flow.getInputs(path)
 
 class STPN(torch.nn.Module):
 
@@ -68,10 +67,10 @@ class STPN(torch.nn.Module):
 		# torch.nn.AvgPool2d(kernel_size, stride = None, padding = 0, ceil_mode = False, count_include_pad=True)
 		# count_include_pad - when True, will include the zero-padding in the average calculation
 		# Kernel size: 7 x 7
-		self.avgPool1 = torch.nn.AvgPool2d((7, 7))
+		self.avgPool1 = torch.nn.AvgPool2d((1, 1))
 
 		# Temporal Stream
-		self.avgPool2 = torch.nn.AvgPool2d((7, 7))
+		self.avgPool2 = torch.nn.AvgPool2d((1, 1))
 
 		# Attention stream
 		# STCB layers
@@ -86,11 +85,11 @@ class STPN(torch.nn.Module):
 		# self.out2 = self.stcb2(self.out1, self.cnn1.classifier)
 		
 		# Input channels = 7, output channels = 7
-		self.conv1 = torch.nn.Conv2d(2048, 64, (7, 7))
-		self.conv2 = torch.nn.Conv2d(64, 1, (7, 7))
+		self.conv1 = torch.nn.Conv2d(2048, 64, (1, 1))
+		self.conv2 = torch.nn.Conv2d(64, 1, (1, 1))
 		self.sm = torch.nn.Softmax2d()
 		# Weighted Pooling Layer
-		self.wtPool = torch.nn.AvgPool2d((7, 7))
+		self.wtPool = torch.nn.AvgPool2d((1, 1))
 
 		# Intersection of streams
 		self.stcb3 = STCB3.CompactBilinearPooling(input_dim1 = 1024, input_dim2 = 1024, input_dim3 = 1024, output_dim = 4096)
