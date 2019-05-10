@@ -13,12 +13,11 @@ def extractFrames(cap):
 	Extracts the frames of a given video.
 
 	Arguments:
-	cap -- captured video
+	cap -- VideoCapture of the video being processed
 
 	Returns:
-	frames -- list of resized (224 x 224) RGB frames 
+	frames -- list of resized (299 x 299) RGB frames 
 	'''
-	#cap = cv.VideoCapture(path)
 
 	frames = []
 	
@@ -66,13 +65,10 @@ def selectInputs(frames, L = 10):
 	numFrames = len(frames)
 
 	# tau = random number from 1 to 10
-	tau = random.randint(1, 10)
+	tau = random.randint(1, 5)
 
 	# Choose value of t
 	t = numFrames // 2		# t chosen to be in the middle
-	# rng = random.randint(1, 5)
-	# # t chosen to be somewhere in the middle
-	# t = random.randint(t - rng, t + rng)
 
 	# Chosen optical flow frames
 	# First set
@@ -92,19 +88,17 @@ def computeFlow(frames, start, end, f_params, lk, filename, num):
 	Computes the optical flow of a given range of frames
 
 	Arguments:
-	frames		-- list of RGB frames
-	start		-- start of set
-	end			-- end of set
-	f_params	-- ShiTomasi corner detection parameters
-	lk			-- Lucas Kanade optical flow parameters
-	filename	-- save filepath
-	num			-- starting frame number to be saved
+	frames		-- List of RGB frames
+	start		-- Start of set
+	end			-- End of set
+	f_params	-- ShiTommasi feature parameters
+    lk          -- Lucas Kanade optical flow parameters
+    filename    -- Save filename
+    num         -- Starting frame number
 
 	Returns:
-	flow	-- tensor of optical flow frames
+	flow	-- Tensor of optical flow
 	'''
-	# print("Num of frames: %d" % len(frames))
-	# print("Start: %d" % start)
 
 	color = (0, 255, 0)		# Green color
 
@@ -115,8 +109,6 @@ def computeFlow(frames, start, end, f_params, lk, filename, num):
 	p0 = cv.goodFeaturesToTrack(old_gray, mask = None, **f_params)
 
 	flow = []
-
-	# frameNum = 0
 
 	for x in range(start, end):
 		frame = frames[x]
@@ -142,18 +134,14 @@ def computeFlow(frames, start, end, f_params, lk, filename, num):
 			frame = cv.circle(frame, (a, b), 5, color, -1)
 
 		img = cv.add(frame, mask)
-
+		fimg = cv.flip(img, 1)
+        # Save the frames
 		cv.imwrite(os.path.join(filename, "flow{}.jpg".format(str(num))), img)
+		cv.imwrite(os.path.join(filename, "flip{}.jpg".format(str(num))), fimg)
 		num += 1
 
 		tensor = torch.from_numpy(img)
 		flow.append(tensor)
-		# flow.append(img)
-
-		# cv.imshow('frame', img)
-		# k = cv.waitKey(30) * 0xff
-		# if k == 27:
-		# 	break
 
 		# Update the previous frame and previous points
 		old_gray = frame_gray.copy()
@@ -166,8 +154,8 @@ def extractOptFlow(frames, filename):
 	Extract the optical flow of selected frames
 
 	Arguments:
-	frames		-- list of RGB frames
-	filename	-- save path
+	frames	    -- list of RGB frames
+    filename    -- Save filename
 
 	Returns:
 	rgb		-- selected RGB frame
@@ -176,11 +164,14 @@ def extractOptFlow(frames, filename):
 	flow3	-- third set of optical flow frames
 	'''
 	# Get selected frames
-	t, s1_s, s1_e, s2_s, s2_e, s3_s, s3_e = selectInputs(frames)
-	rgb = frames[t]
+	rgb, s1_s, s1_e, s2_s, s2_e, s3_s, s3_e = selectInputs(frames)
+	rgb = frames[rgb]
+	# frgb = horizontal flipped
+	frgb = cv.flip(rgb, 1)
 
 	# Save the rgb frame
-	cv.imwrite(os.path.join(filename, "rgb.jpg"), rgb)
+	cv.imwrite(os.path.join(filename, "rgb1.jpg"), rgb)
+	cv.imwrite(os.path.join(filename, "rgb2.jpg"), frgb)
 
 	# Parameters for ShiTomasi corner detection
 	feature_params = dict( maxCorners = 100,
@@ -193,7 +184,6 @@ def extractOptFlow(frames, filename):
 					  maxLevel = 2,
 					  criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
 
-	# color = (0, 255, 0)		# Green color
 
 	# Compute the optical flows
 	flow1 = computeFlow(frames, s1_s, s1_e, feature_params, lk_params, filename, 1)
@@ -207,8 +197,8 @@ def getInputs(cap, filename):
 	Gets the input for the model
 
 	Arguments:
-	cap			-- captured video
-	filename	-- save path
+	cap    	    -- VideoCapture of video
+    filename    -- Save filename
 
 	Returns:
 	rgb		-- RGB frame
@@ -218,11 +208,6 @@ def getInputs(cap, filename):
 	'''
 
 	frames = extractFrames(cap)
-	# print("filename = {}".format(str(filename)))
 	rgb, flow1, flow2, flow3 = extractOptFlow(frames, filename)
 
 	return rgb, flow1, flow2, flow3
-
-# if __name__ == '__main__':
-# 	path = "../kick.avi"
-# 	inputs = getInputs(path)
